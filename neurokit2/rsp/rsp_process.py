@@ -104,15 +104,16 @@ def rsp_process(
     rsp_cleaned = rsp_clean(
         rsp_signal,
         sampling_rate=sampling_rate,
-        method=methods["method_cleaning"],
+        method=methods.get("method_cleaning", method),
         **methods["kwargs_cleaning"],
     )
 
     # Extract, fix and format peaks
+    methods["kwargs_peaks"].update(delta=methods.get("delta", None), lookahead=methods.get("lookahead", None))
     peak_signal, info = rsp_peaks(
         rsp_cleaned,
         sampling_rate=sampling_rate,
-        method=methods["method_peaks"],
+        method=methods.get("method_peaks", method),
         amplitude_min=0.3,
         **methods["kwargs_peaks"],
     )

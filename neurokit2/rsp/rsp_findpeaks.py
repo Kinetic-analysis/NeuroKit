@@ -2,6 +2,7 @@
 import numpy as np
 import pandas as pd
 import scipy.signal
+from signal_processing.utils import detect_peaks_troughs
 
 
 def rsp_findpeaks(
@@ -11,6 +12,8 @@ def rsp_findpeaks(
     amplitude_min=0.3,
     peak_distance=0.8,
     peak_prominence=0.5,
+    delta=0,
+    lookahead=200
 ):
     """**Extract extrema in a respiration (RSP) signal**
 
@@ -83,6 +86,8 @@ def rsp_findpeaks(
         info = _rsp_findpeaks_khodadad(cleaned, amplitude_min=amplitude_min)
     elif method == "biosppy":
         info = _rsp_findpeaks_biosppy(cleaned, sampling_rate=sampling_rate)
+    elif method in ["noto", "noto2018"]:
+        info = _rsp_findpeaks_noto(cleaned, delta=delta, lookahead=lookahead)
     elif method == "scipy":
         info = _rsp_findpeaks_scipy(
             cleaned,
@@ -127,6 +132,13 @@ def _rsp_findpeaks_khodadad(rsp_cleaned, amplitude_min=0.3):
     extrema, amplitudes = _rsp_findpeaks_outliers(rsp_cleaned, extrema, amplitude_min=amplitude_min)
     peaks, troughs = _rsp_findpeaks_sanitize(extrema, amplitudes)
 
+    info = {"RSP_Peaks": peaks, "RSP_Troughs": troughs}
+    return info
+
+
+def _rsp_findpeaks_noto(rsp_cleaned, delta=0, lookahead=200):
+    """https://github.com/mwlodarczak/RespInPeace"""
+    peaks, troughs = detect_peaks_troughs(rsp_cleaned, '', delta=delta, lookahead=lookahead)
     info = {"RSP_Peaks": peaks, "RSP_Troughs": troughs}
     return info
 

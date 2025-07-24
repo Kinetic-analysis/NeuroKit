@@ -5,7 +5,113 @@ from ..misc import check_random_state, check_random_state_children
 from ..signal import signal_distort, signal_simulate, signal_smooth
 
 
+#customized implementation
+
+
 def rsp_simulate(
+    duration=10,
+    length=None,
+    sampling_rate=1000,
+    noise=0.01,
+    respiratory_rate=15,
+    method="breathmetrics",
+    random_state=None,
+    random_state_distort="spawn",
+    breathmetrics_params=None,  # New argument to customize breathmetrics parameters
+):
+    """
+    **Simulate a respiratory signal**
+
+    Generate an artificial (synthetic) respiratory signal of a given duration
+    and rate.
+
+    Parameters
+    ----------
+    duration : int
+        Desired length of duration (s).
+    sampling_rate : int
+        The desired sampling rate (in Hz, i.e., samples/second).
+    length : int
+        The desired length of the signal (in samples).
+    noise : float
+        Noise level (amplitude of the laplace noise).
+    respiratory_rate : float
+        Desired number of breath cycles in one minute.
+    method : str
+        The model used to generate the signal. Can be ``"sinusoidal"`` for a simulation based on a
+        trigonometric sine wave that roughly approximates a single respiratory cycle. If
+        ``"breathmetrics"`` (default), will use an advanced model described by
+        `Noto, et al. (2018) <https://github.com/zelanolab/breathmetrics>`_.
+    random_state : None, int, numpy.random.RandomState or numpy.random.Generator
+        Seed for the random number generator.
+    random_state_distort : {'legacy', 'spawn'}, None, int, numpy.random.RandomState or numpy.random.Generator
+        Random state to be used to distort the signal.
+    breathmetrics_params : dict, optional
+        A dictionary of parameters to pass to the breathmetrics model.
+
+    Returns
+    -------
+    array
+        Vector containing the respiratory signal.
+    """
+    # Seed the random generator for reproducible results
+    rng = check_random_state(random_state)
+    random_state_distort = check_random_state_children(random_state, random_state_distort, n_children=1)
+
+    # Generate number of samples automatically if length is unspecified
+    if length is None:
+        length = duration * sampling_rate
+
+    if method.lower() in ["sinusoidal", "sinus", "simple"]:
+        rsp = _rsp_simulate_sinusoidal(
+            duration=duration, sampling_rate=sampling_rate, respiratory_rate=respiratory_rate
+        )
+    else:
+        # Default parameters for breathmetrics
+        default_params = {
+            "nCycles": int(respiratory_rate / 60 * duration * 1.5),
+            "sampling_rate": sampling_rate,
+            "breathing_rate": respiratory_rate / 60,
+            "average_amplitude": 0.5,
+            "amplitude_variance": 0.1,
+            "phase_variance": 0.1,
+            "inhale_pause_percent": 0.3,
+            "inhale_pause_avgLength": 0.2,
+            "inhale_pauseLength_variance": 0.5,
+            "exhale_pause_percent": 0.3,
+            "exhale_pause_avgLength": 0.2,
+            "exhale_pauseLength_variance": 0.5,
+            "pause_amplitude": 0.1,
+            "pause_amplitude_variance": 0.2,
+            "signal_noise": 0.1,
+            "rng": rng,
+        }
+
+        # Update with user-provided parameters
+        if breathmetrics_params:
+            default_params.update(breathmetrics_params)
+
+        # Generate the breathmetrics signal
+        rsp, _, __ = _rsp_simulate_breathmetrics_original(**default_params)
+        rsp = rsp[0:length]
+
+    # Add random noise
+    if noise > 0:
+        rsp = signal_distort(
+            rsp,
+            sampling_rate=sampling_rate,
+            noise_amplitude=noise,
+            noise_frequency=[5, 10, 100],
+            noise_shape="laplace",
+            random_state=random_state_distort[0],
+            silent=True,
+        )
+
+    return rsp
+
+
+#default implementation
+'''def rsp_simulate(
     duration=10,
     length=None,
     sampling_rate=1000,
@@ -109,7 +215,7 @@ def rsp_simulate(
             silent=True,
         )
 
-    return rsp
+    return rsp'''
 
 
 # =============================================================================
@@ -123,7 +229,7 @@ def _rsp_simulate_sinusoidal(duration=10, sampling_rate=1000, respiratory_rate=1
         duration=duration,
         sampling_rate=sampling_rate,
         frequency=respiratory_rate / 60,
-        amplitude=0.5,
+        amplitude=1.5,
     )
 
     return rsp
